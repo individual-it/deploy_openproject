@@ -5,8 +5,8 @@ if [ ! -f "$1" ] || [ ! -d "$2" ]; then
     exit 1
 fi
 
-if find "$2" -mindepth 1 -maxdepth 1 | read; then
-   1>&2 echo "Cannot uncompress backup: directory not empty"
+if [ -d "./volumes" ] then
+   1>&2 echo "Will not overwrite volumes directory. Remove it first"
    exit 1
 fi
 

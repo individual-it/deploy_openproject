@@ -20,7 +20,7 @@ docker-compose stop
 
 archive=${2}/backup_${project_name}_$(date '+%Y-%m-%d').tar.gz
 
-tar -cf "$archive" "$project_dir"
+tar -cf "$archive" ./volumes
 
 docker-compose start
 
