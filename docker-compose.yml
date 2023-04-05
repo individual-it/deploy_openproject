@@ -1,0 +1,125 @@
+version: "3.7"
+
+networks:
+  frontend:
+  backend:
+
+x-op-restart-policy: &restart_policy
+  restart: unless-stopped
+x-op-image: &image
+  image: openproject/community:${TAG:-12}
+x-op-app: &app
+  <<: [*image, *restart_policy]
+  environment:
+    RAILS_CACHE_STORE: "memcache"
+    OPENPROJECT_CACHE__MEMCACHE__SERVER: "cache:11211"
+    OPENPROJECT_RAILS__RELATIVE__URL__ROOT: "${OPENPROJECT_RAILS__RELATIVE__URL__ROOT:-}"
+    DATABASE_URL: "${DATABASE_URL:-postgres://postgres:p4ssw0rd@db/openproject?pool=20&encoding=unicode&reconnect=true}"
+    RAILS_MIN_THREADS: 4
+    RAILS_MAX_THREADS: 16
+    # set to true to enable the email receiving feature. See ./docker/cron for more options
+    IMAP_ENABLED: "${IMAP_ENABLED:-false}"
+  volumes:
+    - "./volumes/openproject/opdata:/var/openproject/assets"
+x-op-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "100m"
+
+
+
+services:
+  db:
+    image: postgres:13
+    <<: *restart_policy
+    <<: *logging
+    stop_grace_period: "3s"
+    volumes:
+      - "./volumes/openproject/pgdata:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-p4ssw0rd}
+      POSTGRES_DB: openproject
+    networks:
+      - backend
+
+  cache:
+    image: memcached
+    <<: *restart_policy
+    <<: *logging
+    networks:
+      - backend
+
+  # proxy:
+  #   <<: [*image, *restart_policy]
+  #   <<: *logging
+  #   command: "./docker/prod/proxy"
+  #   ports:
+  #     - "127.0.0.1:${PORT:-8080}:80"
+  #   environment:
+  #     APP_HOST: web
+  #     OPENPROJECT_RAILS__RELATIVE__URL__ROOT: "${OPENPROJECT_RAILS__RELATIVE__URL__ROOT:-}"
+  #   depends_on:
+  #     - web
+  #   networks:
+  #     - frontend
+
+  web:
+    <<: *app
+    <<: *logging
+    command: "./docker/prod/web"
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080${OPENPROJECT_RAILS__RELATIVE__URL__ROOT:-}/health_checks/default"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  autoheal:
+    <<: *logging
+    image: willfarrell/autoheal:1.2.0
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+
+  worker:
+    <<: *app
+    <<: *logging
+    command: "./docker/prod/worker"
+    networks:
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+
+  cron:
+    <<: *app
+    <<: *logging
+    command: "./docker/prod/cron"
+    networks:
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+
+  seeder:
+    <<: *app
+    <<: *logging
+    command: "./docker/prod/seeder"
+    restart: on-failure
+    networks:
+      - backend

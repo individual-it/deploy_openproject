@@ -1,4 +1,4 @@
-Generic project
+Based on <https://github.com/opf/openproject-deploy/blob/stable/12/compose/docker-compose.yml>
 
 # Basic commands
 
