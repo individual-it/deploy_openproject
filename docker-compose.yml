@@ -20,8 +20,8 @@ x-op-app: &app
     # set to true to enable the email receiving feature. See ./docker/cron for more options
     IMAP_ENABLED: "${IMAP_ENABLED:-false}"
   volumes:
-    - "./volumes/openproject/opdata:/var/openproject/assets"
-x-op-logging: &logging
+    - "./volumes/opdata:/var/openproject/assets"
+x-op-logging: &limit_logging
   logging:
     driver: "json-file"
     options:
@@ -31,12 +31,12 @@ x-op-logging: &logging
 
 services:
   db:
-    image: postgres:13
+    image: postgres:13.1
     <<: *restart_policy
-    <<: *logging
+    <<: *limit_logging
     stop_grace_period: "3s"
     volumes:
-      - "./volumes/openproject/pgdata:/var/lib/postgresql/data"
+      - "./volumes/pgdata:/var/lib/postgresql/data"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-p4ssw0rd}
       POSTGRES_DB: openproject
@@ -46,13 +46,13 @@ services:
   cache:
     image: memcached
     <<: *restart_policy
-    <<: *logging
+    <<: *limit_logging
     networks:
       - backend
 
   # proxy:
   #   <<: [*image, *restart_policy]
-  #   <<: *logging
+  #   <<: *limit_logging
   #   command: "./docker/prod/proxy"
   #   ports:
   #     - "127.0.0.1:${PORT:-8080}:80"
@@ -66,10 +66,10 @@ services:
 
   web:
     <<: *app
-    <<: *logging
+    <<: *limit_logging
     command: "./docker/prod/web"
     ports:
-      - "127.0.0.1:${PORT:-8080}:8080"
+      - "172.17.0.1:${PORT:-9091}:8080"
     networks:
       - frontend
       - backend
@@ -85,9 +85,11 @@ services:
       timeout: 3s
       retries: 3
       start_period: 30s
+    extra_hosts:
+      - "${NEXTCLOUD_DOMAIN}:172.17.0.1"
 
   autoheal:
-    <<: *logging
+    <<: *limit_logging
     image: willfarrell/autoheal:1.2.0
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
@@ -96,7 +98,7 @@ services:
 
   worker:
     <<: *app
-    <<: *logging
+    <<: *limit_logging
     command: "./docker/prod/worker"
     networks:
       - backend
@@ -107,7 +109,7 @@ services:
 
   cron:
     <<: *app
-    <<: *logging
+    <<: *limit_logging
     command: "./docker/prod/cron"
     networks:
       - backend
@@ -118,7 +120,7 @@ services:
 
   seeder:
     <<: *app
-    <<: *logging
+    <<: *limit_logging
     command: "./docker/prod/seeder"
     restart: on-failure
     networks:
