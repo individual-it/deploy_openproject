@@ -32,8 +32,7 @@ x-op-logging: &limit_logging
 services:
   db:
     image: postgres:13.1
-    <<: *restart_policy
-    <<: *limit_logging
+    <<: [*restart_policy, *limit_logging]
     stop_grace_period: "3s"
     volumes:
       - "./volumes/pgdata:/var/lib/postgresql/data"
@@ -45,8 +44,7 @@ services:
 
   cache:
     image: memcached
-    <<: *restart_policy
-    <<: *limit_logging
+    <<: [*restart_policy, *limit_logging]
     networks:
       - backend
 
@@ -65,8 +63,7 @@ services:
   #     - frontend
 
   web:
-    <<: *app
-    <<: *limit_logging
+    <<: [*app, *limit_logging]
     command: "./docker/prod/web"
     ports:
       - "172.17.0.1:${PORT:-9091}:8080"
@@ -97,8 +94,7 @@ services:
       AUTOHEAL_CONTAINER_LABEL: autoheal
 
   worker:
-    <<: *app
-    <<: *limit_logging
+    <<: [*app, *limit_logging]
     command: "./docker/prod/worker"
     networks:
       - backend
@@ -108,8 +104,7 @@ services:
       - seeder
 
   cron:
-    <<: *app
-    <<: *limit_logging
+    <<: [*app, *limit_logging]
     command: "./docker/prod/cron"
     networks:
       - backend
@@ -119,8 +114,7 @@ services:
       - seeder
 
   seeder:
-    <<: *app
-    <<: *limit_logging
+    <<: [*app, *limit_logging]
     command: "./docker/prod/seeder"
     restart: on-failure
     networks:
